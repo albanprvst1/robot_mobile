@@ -1,0 +1,40 @@
+classDiagram
+    class Moteur {
+        <<abstract>>
+        +commander(*args)*
+        +mettre_a_jour(robot, dt)*
+    }
+
+    class MoteurDifferentiel {
+        +float v
+        +float omega
+        +commander(v, omega)
+        +mettre_a_jour(robot, dt)
+    }
+
+    class MoteurOmnidirectionnel {
+        +float vx
+        +float vy
+        +float omega
+        +commander(vx, vy, omega)
+        +mettre_a_jour(robot, dt)
+    }
+
+    class RobotMobile {
+        -float __x
+        -float __y
+        -float __orientation
+        +Moteur moteur
+        +int _nb_robots$
+        +x() float
+        +y() float
+        +orientation() float
+        +commander(**kwargs)
+        +mettre_a_jour(dt)
+        +nombre_robots() int$
+        +moteur_valide(moteur) bool$
+    }
+
+    Moteur <|-- MoteurDifferentiel : Héritage
+    Moteur <|-- MoteurOmnidirectionnel : Héritage
+    RobotMobile "1" o-- "0..1" Moteur : Composition / Agrégation

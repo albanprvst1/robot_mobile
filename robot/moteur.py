@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from math import cos, sin
 
 class Moteur(ABC):
+    """Classe abstraite définissant l'interface moteur."""
     @abstractmethod
     def commander(self, *args):
         pass
