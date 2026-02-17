@@ -1,18 +1,27 @@
-import math
 from robot.robot_mobile import RobotMobile
+from robot.moteur import MoteurDifferentiel, MoteurOmnidirectionnel
+import math
 
-# Initialisation à (0,0,0)
-robot = RobotMobile(0, 0, 0)
+print("--- TEST MOTEUR DIFFÉRENTIEL ---")
+moteur_diff = MoteurDifferentiel()
+robot1 = RobotMobile(moteur=moteur_diff)
 
-# 1. Avancer de 1 mètre
-robot.avancer(1.0)
+# 1. Avancer de 3m (v=3, dt=1)
+robot1.commander(v=3.0, omega=0.0)
+robot1.mettre_a_jour(1.0)
+# 2. Tourner de 90° vers le haut
+robot1.commander(v=0.0, omega=math.pi/2)
+robot1.mettre_a_jour(1.0)
+# 3. Avancer de 1m sur Y
+robot1.commander(v=1.0, omega=0.0)
+robot1.mettre_a_jour(1.0)
+robot1.afficher()
 
-# 2. Tourner de 45 degrés (conversion en radians nécessaire : deg * pi / 180)
-angle_rad = 45 * math.pi / 180
-robot.tourner(angle_rad)
+print("\n--- TEST MOTEUR OMNIDIRECTIONNEL ---")
+moteur_omni = MoteurOmnidirectionnel()
+robot2 = RobotMobile(moteur=moteur_omni)
 
-# 3. Avancer de 3 mètres
-robot.avancer(3.0)
-
-# Affichage du résultat final
-robot.afficher()
+# Aller directement en (3, 1) en 1 seconde
+robot2.commander(vx=3.0, vy=1.0, omega=0.0)
+robot2.mettre_a_jour(1.0)
+robot2.afficher()
