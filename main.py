@@ -1,42 +1,41 @@
 import pygame
-import sys
 from robot.robot_mobile import RobotMobile
 from robot.moteur import MoteurDifferentiel
+from robot.environnement import Environnement, ObstacleCirculaire
 from robot.controleur import ControleurClavier
 from robot.vue import VuePygame
 
-# 1. Initialisation du MODÈLE
+# 1. Le Modèle (Robot + Environnement)
 robot = RobotMobile(moteur=MoteurDifferentiel())
+env = Environnement(largeur=14, hauteur=10)
+env.ajouter_robot(robot)
 
-# 2. Initialisation de la VUE
-vue = VuePygame()
+# Ajout de quelques obstacles
+env.ajouter_obstacle(ObstacleCirculaire(x=3, y=2, rayon=1.0))
+env.ajouter_obstacle(ObstacleCirculaire(x=-2, y=-1, rayon=0.8, couleur=(200, 50, 50)))
 
-# 3. Initialisation du CONTRÔLEUR
+# 2. La Vue
+vue = VuePygame(scale=40)
+
+# 3. Le Contrôleur
 controleur = ControleurClavier()
 
-dt = 0.016  # Environ 60 FPS (1/60s)
 running = True
-
-print("Simulation lancée. Utilisez les flèches du clavier !")
+dt = 0.016
 
 while running:
-    # Gérer la fermeture de la fenêtre
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+        if event.type == pygame.QUIT: running = False
 
-    # A. Le CONTRÔLEUR lit les touches
+    # Logique MVC
     commande = controleur.lire_commande()
-    
-    # B. Le MODÈLE se met à jour
     robot.commander(**commande)
-    robot.mettre_a_jour(dt)
     
-    # C. La VUE dessine
-    vue.dessiner_robot(robot)
+    # C'est l'environnement qui gère la mise à jour (et les collisions)
+    env.mettre_a_jour(dt)
     
-    # Limiter à 60 FPS
+    # On dessine tout l'environnement
+    vue.dessiner(env)
     vue.tick(60)
 
 pygame.quit()
-sys.exit()
