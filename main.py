@@ -1,26 +1,28 @@
+import time
 from robot.robot_mobile import RobotMobile
-from robot.moteur import MoteurDifferentiel, MoteurOmnidirectionnel
-import math
+from robot.moteur import MoteurDifferentiel
+from robot.controleur import ControleurTerminal
+from robot.vue import VueTerminal
 
-# Création des instances
-diff = MoteurDifferentiel()
-omni = MoteurOmnidirectionnel()
+# 1. Création du MODÈLE
+robot = RobotMobile(moteur=MoteurDifferentiel())
 
-r1 = RobotMobile(moteur=diff)
-r2 = RobotMobile(moteur=omni)
+# 2. Création du CONTRÔLEUR
+controleur = ControleurTerminal()
 
-# Test Différentiel pour (3, 1)
-r1.commander(v=3.0, omega=0.0)
-r1.mettre_a_jour(1.0)
-r1.commander(v=0.0, omega=math.pi/2)
-r1.mettre_a_jour(1.0)
-r1.commander(v=1.0, omega=0.0)
-r1.mettre_a_jour(1.0)
+# 3. Création de la VUE
+vue = VueTerminal()
 
-# Test Omnidirectionnel pour (3, 1)
-r2.commander(vx=3.0, vy=1.0, omega=0.0)
-r2.mettre_a_jour(1.0)
+dt = 0.1  # Pas de temps
+running = True
 
-print(f"Total Robots: {RobotMobile.nombre_robots()}")
-print(f"R1 Final: {r1}")
-print(f"R2 Final: {r2}")
+while running:
+    # A. La VUE affiche l'état actuel
+    vue.dessiner_robot(robot)
+    
+    # B. Le CONTRÔLEUR récupère l'ordre
+    commande = controleur.lire_commande()
+    
+    # C. On applique au MODÈLE
+    robot.commander(**commande)
+    robot.mettre_a_jour(dt)
