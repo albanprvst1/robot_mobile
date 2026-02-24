@@ -2,38 +2,24 @@ import pygame
 import math
 
 class VuePygame:
-    def __init__(self, largeur=800, hauteur=600, scale=50):
+    def __init__(self, scale=40):
         pygame.init()
-        self.screen = pygame.display.set_mode((largeur, hauteur))
-        self.scale = scale
-        self.clock = pygame.time.Clock()
+        self.screen = pygame.display.set_mode((800, 600))
+        self.scale, self.clock = scale, pygame.time.Clock()
 
     def convertir_coordonnees(self, x, y):
-        px = int(self.screen.get_width() / 2 + (x * self.scale))
-        py = int(self.screen.get_height() / 2 - (y * self.scale))
-        return px, py
+        return int(400 + x*self.scale), int(300 - y*self.scale)
 
-    def dessiner(self, environnement):
-        self.screen.fill((255, 255, 255)) # Fond blanc
-        
-        # 1. Dessiner les obstacles
-        for obs in environnement.obstacles:
-            obs.dessiner(self)
-            
-        # 2. Dessiner le robot
-        if environnement.robot:
-            r = environnement.robot
-            px, py = self.convertir_coordonnees(r.x, r.y)
-            rayon_px = int(0.4 * self.scale)
-            
-            # Corps
-            pygame.draw.circle(self.screen, (0, 100, 255), (px, py), rayon_px)
-            # Direction
-            x_dir = px + int(rayon_px * math.cos(r.orientation))
-            y_dir = py - int(rayon_px * math.sin(r.orientation))
-            pygame.draw.line(self.screen, (255, 0, 0), (px, py), (x_dir, y_dir), 3)
-            
+    def dessiner(self, env):
+        fond = (30, 30, 50) if env.est_nuit else (200, 230, 255)
+        self.screen.fill(fond)
+        for zs in env.zones_safes: zs.dessiner(self)
+        if env.zone_eau: env.zone_eau.dessiner(self)
+        for zv in env.zones_vertes: zv.dessiner(self)
+        for g in env.gardes: g.dessiner(self)
+        if env.robot:
+            px, py = self.convertir_coordonnees(env.robot.x, env.robot.y)
+            pygame.draw.circle(self.screen, (50, 255, 50), (px, py), int(0.3 * self.scale))
         pygame.display.flip()
 
-    def tick(self, fps=60):
-        self.clock.tick(fps)
+    def tick(self, fps=60): self.clock.tick(fps)

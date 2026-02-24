@@ -1,39 +1,36 @@
-import pygame
+import math
 from abc import ABC, abstractmethod
 
 class Controleur(ABC):
     @abstractmethod
-    def lire_commande(self):
-        """Retourne un dictionnaire de commandes"""
-        pass
+    def lire_commande(self, robot, env): pass
 
-class ControleurTerminal(Controleur):
-    def lire_commande(self):
-        try:
-            print("\n--- Commande (v omega) ---")
-            entree = input("> ").split()
-            return {"v": float(entree[0]), "omega": float(entree[1])}
-        except:
+class ControleurIA(Controleur):
+    def __init__(self):
+        self.points = {'A': (-6, -4), 'B': (0, 5), 'C': (6, -4)}
+        self.etapes = ['B', 'C', 'A']
+        self.index_etape = 0
+
+    def lire_commande(self, robot, env):
+        cible_nom = self.etapes[self.index_etape]
+        cx, cy = self.points[cible_nom]
+        dx, dy = cx - robot.x, cy - robot.y
+        dist = math.sqrt(dx**2 + dy**2)
+
+        # Attente Eau (C vers A)
+        if cible_nom == 'A' and not env.est_nuit and 2.0 < dist < 5.0:
             return {"v": 0.0, "omega": 0.0}
 
-class ControleurClavier(Controleur):
-    def lire_commande(self):
-        # On récupère l'état de toutes les touches
-        keys = pygame.key.get_pressed()
+        # Evitement Gardes
+        for g in env.gardes:
+            if math.sqrt((g.x-robot.x)**2 + (g.y-robot.y)**2) < 2.0:
+                return {"v": -1.0, "omega": 2.0}
+
+        # Navigation
+        angle_cible = math.atan2(dy, dx)
+        diff = (angle_cible - robot.orientation + math.pi) % (2*math.pi) - math.pi
         
-        v = 0.0
-        omega = 0.0
+        if dist < 0.5:
+            self.index_etape = (self.index_etape + 1) % len(self.etapes)
         
-        # Flèches Haut/Bas pour la vitesse linéaire
-        if keys[pygame.K_UP]:
-            v = 2.0
-        elif keys[pygame.K_DOWN]:
-            v = -2.0
-            
-        # Flèches Gauche/Droite pour la rotation
-        if keys[pygame.K_LEFT]:
-            omega = 1.5
-        elif keys[pygame.K_RIGHT]:
-            omega = -1.5
-            
-        return {"v": v, "omega": omega}
+        return {"v": 1.2, "omega": 3.0 * diff}

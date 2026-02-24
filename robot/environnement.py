@@ -1,73 +1,100 @@
 import math
+import random
+import pygame
 from abc import ABC, abstractmethod
 
-class Obstacle(ABC):
+class EntiteEnvironnement(ABC):
+    @abstractmethod
+    def dessiner(self, vue):
+        pass
+
+class Obstacle(EntiteEnvironnement):
     @abstractmethod
     def collision(self, x_robot, y_robot, rayon_robot) -> bool:
-        """Retourne True s'il y a collision avec le robot."""
         pass
 
-    @abstractmethod
-    def dessiner(self, vue):
-        """Méthode pour que la vue puisse dessiner l'obstacle."""
-        pass
-
-class ObstacleCirculaire(Obstacle):
-    def __init__(self, x, y, rayon, couleur=(100, 100, 100)):
-        self.x = x
-        self.y = y
-        self.rayon = rayon
-        self.couleur = couleur
-
-    def collision(self, x_r, y_r, rayon_r) -> bool:
-        # Distance entre les centres : d = sqrt((x2-x1)^2 + (y2-y1)^2)
-        distance = math.sqrt((self.x - x_r)**2 + (self.y - y_r)**2)
-        return distance <= (self.rayon + rayon_r)
+class ZoneSafe(EntiteEnvironnement):
+    def __init__(self, x, y, nom, rayon=0.6):
+        self.x, self.y, self.nom, self.rayon = x, y, nom, rayon
 
     def dessiner(self, vue):
-        # On délègue l'affichage à la vue pygame via une méthode utilitaire
-        import pygame
+        px, py = vue.convertir_coordonnees(self.x, self.y)
+        pygame.draw.circle(vue.screen, (255, 215, 0), (px, py), int(self.rayon * vue.scale), 2)
+        font = pygame.font.SysFont("Arial", 18, bold=True)
+        texte = font.render(self.nom, True, (200, 150, 0))
+        vue.screen.blit(texte, (px - 8, py - 25))
+
+class Garde(Obstacle):
+    def __init__(self, x, y, rayon=0.4):
+        self.x, self.y, self.rayon = x, y, rayon
+        self.couleur = (255, 50, 50)
+        angle = random.uniform(0, 2 * math.pi)
+        vitesse = 1.5
+        self.vx = math.cos(angle) * vitesse
+        self.vy = math.sin(angle) * vitesse
+
+    def se_deplacer(self, dt, limite_x, limite_y):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        if abs(self.x) > limite_x/2: self.vx *= -1
+        if abs(self.y) > limite_y/2: self.vy *= -1
+
+    def collision(self, xr, yr, rr):
+        return math.sqrt((self.x - xr)**2 + (self.y - yr)**2) <= (self.rayon + rr)
+
+    def dessiner(self, vue):
         px, py = vue.convertir_coordonnees(self.x, self.y)
         pygame.draw.circle(vue.screen, self.couleur, (px, py), int(self.rayon * vue.scale))
 
+class ZoneVerte(EntiteEnvironnement):
+    def __init__(self, x, y, largeur, hauteur):
+        self.x, self.y, self.w, self.h = x, y, largeur, hauteur
+
+    def est_interieur(self, xr, yr):
+        return (self.x - self.w/2 <= xr <= self.x + self.w/2 and
+                self.y - self.h/2 <= yr <= self.y + self.h/2)
+
+    def dessiner(self, vue):
+        px, py = vue.convertir_coordonnees(self.x - self.w/2, self.y + self.h/2)
+        rect = pygame.Rect(px, py, int(self.w * vue.scale), int(self.h * vue.scale))
+        surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        surface.fill((34, 139, 34, 150)) 
+        vue.screen.blit(surface, (px, py))
+
+class ZoneEau(Obstacle):
+    def __init__(self, x, y, largeur, hauteur):
+        self.x, self.y, self.w, self.h = x, y, largeur, hauteur
+
+    def collision(self, xr, yr, rr):
+        return (self.x - self.w/2 <= xr <= self.x + self.w/2 and
+                self.y - self.h/2 <= yr <= self.y + self.h/2)
+
+    def dessiner(self, vue):
+        px, py = vue.convertir_coordonnees(self.x - self.w/2, self.y + self.h/2)
+        rect = pygame.Rect(px, py, int(self.w * vue.scale), int(self.h * vue.scale))
+        pygame.draw.rect(vue.screen, (0, 100, 255), rect)
+
 class Environnement:
-    def __init__(self, largeur=10.0, hauteur=10.0):
-        self.largeur = largeur
-        self.hauteur = hauteur
+    def __init__(self, largeur=16.0, hauteur=12.0):
+        self.largeur, self.hauteur = largeur, hauteur
         self.robot = None
-        self.obstacles = []
+        self.gardes, self.zones_vertes, self.zones_safes = [], [], []
+        self.zone_eau = None
+        self.heure = 12.0 
 
-    def ajouter_robot(self, robot):
-        self.robot = robot
+    def ajouter_robot(self, robot): self.robot = robot
 
-    def ajouter_obstacle(self, obstacle):
-        self.obstacles.append(obstacle)
+    @property
+    def est_nuit(self): return self.heure < 6.0 or self.heure > 20.0
 
     def mettre_a_jour(self, dt):
-        if self.robot is None: return
-
-        # 1. Sauvegarde de l'état actuel (avant mouvement)
-        old_x, old_y = self.robot.x, self.robot.y
-        old_ori = self.robot.orientation
-
-        # 2. On laisse le robot calculer son nouveau mouvement théorique
+        self.heure = (self.heure + dt * 0.3) % 24.0
+        for g in self.gardes: g.se_deplacer(dt, self.largeur, self.hauteur)
+        if not self.robot: return
+        old_pos = (self.robot.x, self.robot.y)
         self.robot.mettre_a_jour(dt)
-
-        # 3. Vérification des collisions (obstacles et murs)
-        collision = False
-        rayon_robot = 0.4 # On définit un rayon fixe pour le robot
-        
-        # Test contre les obstacles
-        for obs in self.obstacles:
-            if obs.collision(self.robot.x, self.robot.y, rayon_robot):
-                collision = True
-                break
-        
-        # Test contre les limites du monde (murs)
-        if abs(self.robot.x) > self.largeur/2 or abs(self.robot.y) > self.hauteur/2:
-            collision = True
-
-        # 4. Si collision, on annule (retour à l'ancienne position)
-        if collision:
-            self.robot.x, self.robot.y = old_x, old_y
-            self.robot.orientation = old_ori
+        coll = any(g.collision(self.robot.x, self.robot.y, 0.3) for g in self.gardes)
+        if self.zone_eau and not self.est_nuit:
+            if self.zone_eau.collision(self.robot.x, self.robot.y, 0.3): coll = True
+        if abs(self.robot.x) > self.largeur/2 or abs(self.robot.y) > self.hauteur/2: coll = True
+        if coll: self.robot.x, self.robot.y = old_pos
