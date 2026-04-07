@@ -2,41 +2,18 @@ from abc import ABC, abstractmethod
 from math import cos, sin
 
 class Moteur(ABC):
-    """Classe abstraite définissant l'interface moteur."""
     @abstractmethod
-    def commander(self, *args):
-        pass
-
+    def commander(self, *args): pass
     @abstractmethod
-    def mettre_a_jour(self, robot, dt):
-        pass
+    def mettre_a_jour(self, robot, dt, friction): pass
 
 class MoteurDifferentiel(Moteur):
     def __init__(self, v=0.0, omega=0.0):
-        self.v = v
-        self.omega = omega
-
+        self.v, self.omega = v, omega
     def commander(self, v, omega):
-        self.v = v
-        self.omega = omega
-
-    def mettre_a_jour(self, robot, dt):
+        self.v, self.omega = v, omega
+    def mettre_a_jour(self, robot, dt, friction=1.0):
         robot.orientation += self.omega * dt
-        robot.x += self.v * cos(robot.orientation) * dt
-        robot.y += self.v * sin(robot.orientation) * dt
-
-class MoteurOmnidirectionnel(Moteur):
-    def __init__(self, vx=0.0, vy=0.0, omega=0.0):
-        self.vx = vx
-        self.vy = vy
-        self.omega = omega
-
-    def commander(self, vx, vy, omega):
-        self.vx = vx
-        self.vy = vy
-        self.omega = omega
-
-    def mettre_a_jour(self, robot, dt):
-        robot.orientation += self.omega * dt
-        robot.x += (self.vx * cos(robot.orientation) - self.vy * sin(robot.orientation)) * dt
-        robot.y += (self.vx * sin(robot.orientation) + self.vy * cos(robot.orientation)) * dt
+        v_reelle = self.v * friction
+        robot.x += v_reelle * cos(robot.orientation) * dt
+        robot.y += v_reelle * sin(robot.orientation) * dt
