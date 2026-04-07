@@ -3,11 +3,9 @@ import random
 import pygame
 from abc import ABC, abstractmethod
 
-
 class Obstacle(ABC):
     @abstractmethod
     def collision(self, xr, yr, rr) -> bool: pass
-
 
 class Mur(Obstacle):
     def __init__(self, x1, y1, x2, y2):
@@ -25,7 +23,6 @@ class Mur(Obstacle):
         p2 = vue.convertir_coordonnees(self.x2, self.y2)
         pygame.draw.line(vue.screen, (50, 30, 10), p1, p2, 6)
 
-
 class ZoneEau(Obstacle):
     def __init__(self, x, y, w, h):
         self.x, self.y, self.w, self.h = x, y, w, h
@@ -39,7 +36,6 @@ class ZoneEau(Obstacle):
         pygame.draw.rect(vue.screen, (0, 100, 200),
                          (px, py, int(self.w * vue.scale), int(self.h * vue.scale)))
 
-
 class ZoneSafe:
     def __init__(self, x, y, nom):
         self.x, self.y, self.nom = x, y, nom
@@ -50,7 +46,6 @@ class ZoneSafe:
         pygame.draw.rect(vue.screen, (200, 180, 150), (px - s//2, py - s//2, s, s))
         pygame.draw.polygon(vue.screen, (150, 0, 0),
                             [(px-s//2-4, py-s//2), (px+s//2+4, py-s//2), (px, py-s)])
-
 
 class ZoneVerte:
     def __init__(self, x, y, w, h):
@@ -65,7 +60,6 @@ class ZoneVerte:
         s = pygame.Surface((int(self.w * vue.scale), int(self.h * vue.scale)), pygame.SRCALPHA)
         s.fill((34, 139, 34, 180))
         vue.screen.blit(s, (px, py))
-
 
 class Garde:
     def __init__(self, x, y):
@@ -85,7 +79,6 @@ class Garde:
         px, py = vue.convertir_coordonnees(self.x, self.y)
         pygame.draw.circle(vue.screen, (255, 0, 0), (px, py), int(0.4 * vue.scale))
 
-
 class Environnement:
     def __init__(self, largeur, hauteur):
         self.largeur, self.hauteur, self.heure = largeur, hauteur, 12.0
@@ -102,44 +95,35 @@ class Environnement:
         return self.heure < 6 or self.heure > 20
 
     def robot_cache(self):
-        if not self.robot:
-            return False
+        if not self.robot: return False
         return any(zv.contient(self.robot.x, self.robot.y) for zv in self.zones_vertes)
 
+    def lancer_rayon(self, x_dep, y_dep, angle, distance_max=6.0):
+        """Simule un capteur Lidar."""
+        pas, dist = 0.2, 0.0
+        while dist < distance_max:
+            dist += pas
+            rx, ry = x_dep + dist * math.cos(angle), y_dep + dist * math.sin(angle)
+            if any(m.collision(rx, ry, 0.1) for m in self.murs) or \
+               abs(rx) > self.largeur/2 or abs(ry) > self.hauteur/2:
+                return dist
+        return distance_max
+
     def mettre_a_jour(self, dt):
-        if self.game_over:
-            return
-
+        if self.game_over: return
         self.heure = (self.heure + dt * 0.5) % 24
-        for g in self.gardes:
-            g.mettre_a_jour(dt, self)
-        if not self.robot:
-            return
-
+        for g in self.gardes: g.mettre_a_jour(dt, self)
+        if not self.robot: return
         old_x, old_y = self.robot.x, self.robot.y
         self.robot.mettre_a_jour(dt)
-
         if any(m.collision(self.robot.x, self.robot.y, 0.3) for m in self.murs) or \
-           (self.zone_eau and self.zone_eau.collision(self.robot.x, self.robot.y, 0.3)
-                and not self.est_nuit):
+           (self.zone_eau and self.zone_eau.collision(self.robot.x, self.robot.y, 0.3) and not self.est_nuit):
             self.robot.x, self.robot.y = old_x, old_y
-
-       # Détection hors buisson
-        if not self.robot_cache():
-            rayon_detection = 1.0 if self.est_nuit else 1.75
-            for g in self.gardes:
-                d = math.hypot(self.robot.x - g.x, self.robot.y - g.y)
-                if d < rayon_detection:
-                    self.game_over        = True
-                    self.game_over_raison = f"Repéré à {d:.1f}m !"
-                    return
-
-        # Détection dans le buisson (garde entre dedans)
-        if self.robot_cache():
-            rayon_buisson = 0.3
-            for g in self.gardes:
-                d = math.hypot(self.robot.x - g.x, self.robot.y - g.y)
-                if d < rayon_buisson:
-                    self.game_over        = True
-                    self.game_over_raison = "Trouvé dans le buisson !"
-                    return
+        
+        # Détection
+        dist_detec = 1.0 if self.est_nuit else 1.75
+        for g in self.gardes:
+            d = math.hypot(self.robot.x - g.x, self.robot.y - g.y)
+            if (not self.robot_cache() and d < dist_detec) or (self.robot_cache() and d < 0.3):
+                self.game_over, self.game_over_raison = True, "Repéré !"
+                return
