@@ -52,24 +52,30 @@ class ZoneVerte:
 class Garde:
     def __init__(self, x, y):
         self.x, self.y = x, y
-        self.vx, self.vy = random.choice([-1.2, 1.2]), random.choice([-1.2, 1.2])
+        self.orientation = random.uniform(0, 2*math.pi)
+        self.v = 1.2
     def mettre_a_jour(self, dt, env):
-        vit = 2.0 if env.alerte else 1.0
-        nx, ny = self.x + self.vx * vit * dt, self.y + self.vy * vit * dt
-        if abs(nx) > env.largeur/2 or any(m.collision(nx, ny, 0.4) for m in env.murs): self.vx *= -1
-        if abs(ny) > env.hauteur/2 or any(m.collision(nx, ny, 0.4) for m in env.murs): self.vy *= -1
-        self.x += self.vx * vit * dt
-        self.y += self.vy * vit * dt
+        vit = self.v * (2.2 if env.alerte else 1.0)
+        nx = self.x + math.cos(self.orientation) * vit * dt
+        ny = self.y + math.sin(self.orientation) * vit * dt
+        if abs(nx) > env.largeur/2 or abs(ny) > env.hauteur/2 or any(m.collision(nx, ny, 0.5) for m in env.murs):
+            self.orientation += math.pi/2 + random.uniform(-0.5, 0.5)
+        else:
+            self.x, self.y = nx, ny
     def dessiner(self, vue):
         px, py = vue.convertir_coordonnees(self.x, self.y)
-        pygame.draw.circle(vue.screen, (255, 0, 0), (px, py), int(0.4 * vue.scale))
+        pygame.draw.circle(vue.screen, (220, 20, 20), (px, py), int(0.4 * vue.scale))
+        p2 = vue.convertir_coordonnees(self.x + 1.2*math.cos(self.orientation), self.y + 1.2*math.sin(self.orientation))
+        pygame.draw.line(vue.screen, (255, 0, 0), (px, py), p2, 2)
 
 class Environnement:
     def __init__(self, largeur, hauteur):
         self.largeur, self.hauteur, self.heure = largeur, hauteur, 12.0
         self.murs, self.zones_vertes, self.zones_safes, self.gardes = [], [], [], []
         self.zone_eau, self.robot = None, None
-        self.game_over, self.game_over_raison, self.alerte = False, "", False
+        self.game_over = False
+        self.game_over_raison = ""
+        self.alerte = False
 
     def ajouter_robot(self, robot): self.robot = robot
     @property
@@ -79,9 +85,7 @@ class Environnement:
         return any(zv.contient(self.robot.x, self.robot.y) for zv in self.zones_vertes)
 
     def vue_directe_libre(self, x1, y1, x2, y2):
-        """Vérifie si la ligne de vue entre le garde et le robot est coupée par un mur."""
         dist = math.hypot(x2 - x1, y2 - y1)
-        if dist < 0.1: return True
         pas = 0.3
         for i in range(1, int(dist/pas)):
             cx = x1 + (x2 - x1) * (i * pas / dist)
@@ -89,8 +93,8 @@ class Environnement:
             if any(m.collision(cx, cy, 0.1) for m in self.murs): return False
         return True
 
-    def lancer_rayon(self, x_dep, y_dep, angle, distance_max=6.0):
-        pas, dist = 0.2, 0.0
+    def lancer_rayon(self, x_dep, y_dep, angle, distance_max=8.0):
+        pas, dist = 0.15, 0.0
         while dist < distance_max:
             dist += pas
             rx, ry = x_dep + dist * math.cos(angle), y_dep + dist * math.sin(angle)
@@ -108,12 +112,15 @@ class Environnement:
         if any(m.collision(self.robot.x, self.robot.y, 0.3) for m in self.murs) or \
            (self.zone_eau and self.zone_eau.collision(self.robot.x, self.robot.y, 0.3) and not self.est_nuit):
             self.robot.x, self.robot.y = old_x, old_y
-        
+        if self.robot.energie <= 0:
+            self.game_over, self.game_over_raison = True, "BATTERIE VIDE"
         self.alerte = False
-        detec = 1.0 if self.est_nuit else 1.8
         for g in self.gardes:
             d = math.hypot(self.robot.x - g.x, self.robot.y - g.y)
-            if self.vue_directe_libre(g.x, g.y, self.robot.x, self.robot.y):
-                if d < 3.5 and not self.robot_cache(): self.alerte = True
-                if (not self.robot_cache() and d < detec) or (self.robot_cache() and d < 0.3):
-                    self.game_over, self.game_over_raison = True, "Repéré !"
+            angle_vers_robot = math.atan2(self.robot.y - g.y, self.robot.x - g.x)
+            diff_angle = abs((angle_vers_robot - g.orientation + math.pi) % (2*math.pi) - math.pi)
+            if d < 4.0 and diff_angle < 0.8:
+                if self.vue_directe_libre(g.x, g.y, self.robot.x, self.robot.y):
+                    if not self.robot_cache() or d < 0.6:
+                        if d < 1.5: self.game_over, self.game_over_raison = True, "REPERE !"
+                        else: self.alerte = True
